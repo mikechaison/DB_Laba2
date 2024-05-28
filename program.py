@@ -39,8 +39,9 @@ class Table:
                 self.e = Button(root, text="Delete", command=lambda ID=data[0]: delete_object(table_name, table_cols, ID, root))
                 self.e.grid(row=i, column=m+1, padx=5, pady=2)
                 i+=1
-                
-                
+
+            update_scrollable_region()
+            
         except pyodbc.Error as ex:
             messagebox.showerror('Failure', 'Connection failed: '+str(ex))
 
@@ -68,7 +69,6 @@ class QueryTable:
                                         'Database=television_db;'+
                                         'Trusted_Connection=True')
             cursor = connection.cursor()
-            print(query)
             cursor.execute(query)
             i=1
             for data in cursor:
@@ -352,8 +352,8 @@ AND NOT EXISTS
 (SELECT * FROM HostShow INNER JOIN TVhost ON TVhost.ssn=HostShow.host_ssn
 WHERE (TVhost.first_name!='{0}' OR TVhost.second_name!='{1}') AND HostShow.show_id=TVshow.id)""",
 """SELECT * FROM TVshow
-WHERE NOT EXISTS (SELECT * FROM TVhost WHERE TVhost.first_name='{0}' AND TVhost.ssn NOT IN
-(SELECT HostShow.host_ssn FROM HostShow WHERE HostShow.show_id=TVshow.id))
+WHERE TVshow.id IN (SELECT HostShow.show_id FROM HostShow WHERE HostShow.host_ssn IN
+(SELECT TVhost.ssn FROM TVhost WHERE TVhost.first_name='{0}'))
 AND EXISTS (SELECT * FROM HostShow WHERE HostShow.show_id=TVshow.id AND HostShow.host_ssn NOT IN
 (SELECT TVhost.ssn FROM TVhost WHERE TVhost.first_name='{0}'))"""
 ]
@@ -367,16 +367,42 @@ query_cols=[['channel_number', 'name', 'category', 'country'],
             ['count'],
             ['id', 'name', 'category']]
 
-frtable=Frame(root)
+frame = Frame(root)
+
+canvas = Canvas(frame)
+fr1=Frame(canvas)
+scrollbar = Scrollbar(frame, orient=VERTICAL, command=canvas.yview)
+
+scrollbar.config(command=canvas.yview)
+scrollbar.pack(side=RIGHT, fill=Y)
+canvas.pack(side=LEFT, fill=BOTH, expand=True)
+canvas_window = canvas.create_window((0, 0), window=fr1, anchor="nw")
+canvas.configure(yscrollcommand=scrollbar.set)
+
+def update_scrollable_region(event=None):
+    canvas_width = canvas.winfo_width()
+    canvas_height = canvas.winfo_height()
+    fr1_width = fr1.winfo_reqwidth()
+    fr1_height = fr1.winfo_reqheight()
+
+    canvas.configure(scrollregion=(0, 0, max(canvas_width, fr1_width), max(canvas_height, fr1_height)))
+    
+
+fr1.bind("<Configure>", update_scrollable_region)
+
+frtable=Frame(fr1)
+frbuttons=Frame(fr1)
+
 
 #tables
 for i in range(len(tables)):
-    print(tables[i], cols[i])
-    Button(root, text=tables[i], command=lambda n=i: build_table(tables[n], cols[n], frtable)).grid(row=0, column=i, padx=5, pady=5)
+    Button(frbuttons, text=tables[i], command=lambda n=i: build_table(tables[n], cols[n], frtable)).grid(row=0, column=i, padx=5, pady=5)
 
-Button(root, text='SQL Queries', command=lambda: show_queries()).grid(row=0, column=8, padx=5, pady=5)
-Button(root, text='Info', command=show_info).grid(row=0, column=9, padx=5, pady=5)
+Button(frbuttons, text='SQL Queries', command=lambda: show_queries()).grid(row=0, column=8, padx=5, pady=5)
+Button(frbuttons, text='Info', command=show_info).grid(row=0, column=9, padx=5, pady=5)
 
-frtable.grid(row=1, column=0, columnspan=10)
+frbuttons.grid(row=0, column=0, sticky='W')
+frtable.grid(row=1, column=0)
 
+frame.pack(fill=BOTH, expand=True)
 root.mainloop()
